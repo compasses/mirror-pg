@@ -1,0 +1,688 @@
+CREATE TABLE decimal64table (d decimal64(5,2), id INT);
+NOTICE:  Table doesn't have 'DISTRIBUTED BY' clause -- Using column named 'd' as the Greenplum Database data distribution key for this table.
+HINT:  The 'DISTRIBUTED BY' clause determines the distribution of data. Make sure column(s) chosen are the optimal data distribution key to minimize skew.
+INSERT INTO decimal64table (id,d) VALUES(1,-123.45);
+INSERT INTO decimal64table (id,d) VALUES(2,-123);
+INSERT INTO decimal64table (id,d) VALUES(3,-12.34);
+INSERT INTO decimal64table (id,d) VALUES(4,-1.34);
+INSERT INTO decimal64table (id,d) VALUES(5, 0.12);
+INSERT INTO decimal64table (id,d) VALUES(6, 1.23);
+INSERT INTO decimal64table (id,d) VALUES(7, 12.34);
+INSERT INTO decimal64table (id,d) VALUES(8, 123.45);
+INSERT INTO decimal64table (id,d) VALUES(9, 123.456);
+INSERT INTO decimal64table (id,d) VALUES(10, 123.456);
+-- Should fail
+CREATE UNIQUE INDEX decimal64table_d_idx ON decimal64table (d);
+ERROR:  could not create unique index "decimal64table_d_idx"  (seg0 10.0.2.15:25432 pid=13693)
+DETAIL:  Key (d)=(123.46) is duplicated.
+DELETE FROM decimal64table WHERE id = 9;
+CREATE UNIQUE INDEX decimal64table_d_idx ON decimal64table (d);
+SET enable_seqscan = off;
+EXPLAIN (COSTS OFF) SELECT * FROM decimal64table ORDER BY d;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Gather Motion 1:1  (slice1; segments: 1)
+   Merge Key: d
+   ->  Index Scan using decimal64table_d_idx on decimal64table
+ Optimizer: Postgres query optimizer
+(4 rows)
+
+SELECT * FROM decimal64table ORDER BY d;
+    d    | id 
+---------+----
+ -123.45 |  1
+ -123    |  2
+ -12.34  |  3
+ -1.34   |  4
+ 0.12    |  5
+ 1.23    |  6
+ 12.34   |  7
+ 123.45  |  8
+ 123.46  | 10
+(9 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM decimal64table WHERE d = '12.34'::decimal64;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Gather Motion 1:1  (slice1; segments: 1)
+   ->  Index Scan using decimal64table_d_idx on decimal64table
+         Index Cond: (d = '12.34'::decimal64)
+ Optimizer: Postgres query optimizer
+(4 rows)
+
+SELECT * FROM decimal64table WHERE d = '12.34'::decimal64;
+   d   | id 
+-------+----
+ 12.34 |  7
+(1 row)
+
+SELECT * FROM decimal64table WHERE d = '-12.34'::decimal64;
+   d    | id 
+--------+----
+ -12.34 |  3
+(1 row)
+
+SELECT * FROM decimal64table WHERE d = '123.45'::decimal64;
+   d    | id 
+--------+----
+ 123.45 |  8
+(1 row)
+
+DROP INDEX decimal64table_d_idx;
+DROP TABLE decimal64table;
+CREATE TABLE decimal64table (d decimal64(16,3));
+NOTICE:  Table doesn't have 'DISTRIBUTED BY' clause -- Using column named 'd' as the Greenplum Database data distribution key for this table.
+HINT:  The 'DISTRIBUTED BY' clause determines the distribution of data. Make sure column(s) chosen are the optimal data distribution key to minimize skew.
+insert into decimal64table values(1845694983.246);
+insert into decimal64table values(1845694983.246);
+insert into decimal64table values(1845694983.246);
+insert into decimal64table values(1845694983.246);
+insert into decimal64table values(1845694983.246);
+insert into decimal64table values(18456949830.246);
+insert into decimal64table values(184569498003.246);
+insert into decimal64table values(18456949800003.246);
+ERROR:  decimal64 field overflow
+DETAIL:  A field with max precision 16, max scale 3 must round to an absolute value less than 10^13.
+insert into decimal64table values(1845694000000983.246);
+ERROR:  decimal64 field overflow
+DETAIL:  A field with max precision 16, max scale 3 must round to an absolute value less than 10^13.
+insert into decimal64table values(18456949999999983.246);
+ERROR:  decimal64 field overflow
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+select avg(d), sum(d) from decimal64table;
+         avg          |          sum          
+----------------------+-----------------------
+ 30322131821.38885714 | 212254922749.72200000
+(1 row)
+
+DROP TABLE decimal64table;
+SET enable_seqscan = on;
+-- True comparisons
+SELECT '123'::decimal64 < '123.01'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123'::decimal64 <= '123.01'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123'::decimal64 > '122.99'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123'::decimal64 >= '122.99'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123.00'::decimal64 = '123'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+-- Compare to int4
+SELECT '123'::INT < '123.01'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123'::INT <= '123.01'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123'::INT > '122.99'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123'::INT >= '122.99'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123'::INT = '123.00'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+-- Compare to int4 reversed
+SELECT '123.01'::decimal64 > '123'::INT;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT  '123.01'::decimal64 >= '123'::INT;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '122.99'::decimal64 < '123'::INT;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '122.99'::decimal64 <= '123'::INT;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123.00'::decimal64 = '123'::INT;
+ ?column? 
+----------
+ t
+(1 row)
+
+-- Compare to int2
+SELECT '123'::SMALLINT < '123.01'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123'::SMALLINT <= '123.01'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123'::SMALLINT > '122.99'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123'::SMALLINT >= '122.99'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123'::SMALLINT = '123.00'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+-- Compare to int4 reversed
+SELECT '123.01'::decimal64 > '123'::SMALLINT;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT  '123.01'::decimal64 >= '123'::SMALLINT;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '122.99'::decimal64 < '123'::SMALLINT;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '122.99'::decimal64 <= '123'::SMALLINT;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '123.00'::decimal64 = '123'::SMALLINT;
+ ?column? 
+----------
+ t
+(1 row)
+
+-- False comparisons
+SELECT '123'::decimal64 >= '123.01'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123'::decimal64 > '123.01'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123'::decimal64 <= '122.99'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123'::decimal64 < '122.99'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123.00'::decimal64 <> '123'::decimal64;
+ ?column? 
+----------
+ t
+(1 row)
+
+-- Compare to int4
+SELECT '123'::INT >= '123.01'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123'::INT > '123.01'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123'::INT <= '122.99'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123'::INT < '122.99'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123'::INT <> '123.00'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+-- Compare to int4 reversed
+SELECT '123.01'::decimal64 <= '123'::INT;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT  '123.01'::decimal64 < '123'::INT;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '122.99'::decimal64 >= '123'::INT;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '122.99'::decimal64 > '123'::INT;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123.00'::decimal64 <> '123'::INT;
+ ?column? 
+----------
+ f
+(1 row)
+
+-- Compare to int2
+SELECT '123'::SMALLINT >= '123.01'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123'::SMALLINT > '123.01'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123'::SMALLINT <= '122.99'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123'::SMALLINT < '122.99'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123'::SMALLINT <> '123.00'::decimal64;
+ ?column? 
+----------
+ f
+(1 row)
+
+-- Compare to int4 reversed
+SELECT '123.01'::decimal64 <= '123'::SMALLINT;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT  '123.01'::decimal64 < '123'::SMALLINT;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '122.99'::decimal64 >= '123'::SMALLINT;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '122.99'::decimal64 > '123'::SMALLINT;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123.00'::decimal64 <> '123'::SMALLINT;
+ ?column? 
+----------
+ f
+(1 row)
+
+-- Compare to int8 reversed
+SELECT '123.01'::decimal64 <= '123'::bigint;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT  '123.01'::decimal64 < '123'::bigint;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '122.99'::decimal64 >= '123'::bigint;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '122.99'::decimal64 > '123'::bigint;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '123.00'::decimal64 <> '123'::bigint;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT CAST('2147483647'::decimal64 AS INT);
+    int4    
+------------
+ 2147483647
+(1 row)
+
+-- Ensure overflow is detected
+SELECT CAST('2147483648'::decimal64 AS INT);
+ERROR:  integer out of range for decimal64
+SELECT CAST('-2147483648'::decimal64 AS INT);
+    int4     
+-------------
+ -2147483648
+(1 row)
+
+-- Ensure underflow is detected
+SELECT CAST('-2147483649'::decimal64 AS INT);
+ERROR:  integer out of range for decimal64
+SELECT CAST('32767'::decimal64 AS SMALLINT);
+ int2  
+-------
+ 32767
+(1 row)
+
+-- Ensure overflow is detected
+SELECT CAST('32768'::decimal64 AS SMALLINT);
+ERROR:  smallint out of range
+SELECT CAST('-32768'::decimal64 AS SMALLINT);
+  int2  
+--------
+ -32768
+(1 row)
+
+-- Ensure underflow is detected
+SELECT CAST('-32769'::decimal64 AS SMALLINT);
+ERROR:  smallint out of range
+SELECT CAST('1234321.23'::decimal64 AS FLOAT);
+   float8   
+------------
+ 1234321.23
+(1 row)
+
+SELECT CAST('1234321.23'::decimal64 AS DOUBLE PRECISION);
+   float8   
+------------
+ 1234321.23
+(1 row)
+
+SELECT CAST('9223372036854733.23'::decimal64 AS bigint);
+       int8       
+------------------
+ 9223372036854732
+(1 row)
+
+-- Ensure the expected extreme values can be represented
+SELECT '-92233720368547758.08'::decimal64 as minvalue,'92233720368547758.07'::decimal64 as maxvalue;
+ERROR:  decimal64 field overflow
+LINE 1: SELECT '-92233720368547758.08'::decimal64 as minvalue,'92233...
+               ^
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+SELECT '-92233720368547758.09'::decimal64;
+ERROR:  decimal64 field overflow
+LINE 1: SELECT '-92233720368547758.09'::decimal64;
+               ^
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+SELECT '92233720368547758.08'::decimal64;
+ERROR:  decimal64 field overflow
+LINE 1: SELECT '92233720368547758.08'::decimal64;
+               ^
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+-- Ensure casts from numeric to decimal64 work
+SELECT '92233720368547758.07'::numeric::decimal64;
+ERROR:  decimal64 field overflow
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+-- The literal below must be quoted as the parser seems to read the literal as
+-- a positive number first and then us the - unary operator to make it negaive.
+-- This would overflow without the quotes as this number cannot be represented
+-- in a positive decimal64.
+SELECT '-92233720368547758.08'::numeric::decimal64;
+ERROR:  decimal64 field overflow
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+-- Ensure casts from numeric to fixed decimal detect overflow
+SELECT '92233720368547758.08'::numeric::decimal64;
+ERROR:  decimal64 field overflow
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+SELECT '-92233720368547758.09'::numeric::decimal64;
+ERROR:  decimal64 field overflow
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+SELECT '-92233720368547758.08'::decimal64 - '0.01'::decimal64;
+ERROR:  decimal64 field overflow
+LINE 1: SELECT '-92233720368547758.08'::decimal64 - '0.01'::decimal6...
+               ^
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+SELECT '92233720368547758.07'::decimal64 + '0.01'::decimal64;
+ERROR:  decimal64 field overflow
+LINE 1: SELECT '92233720368547758.07'::decimal64 + '0.01'::decimal64...
+               ^
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+-- Should not overflow
+SELECT '46116860184273879.03'::decimal64 * '2.00'::decimal64;
+ERROR:  decimal64 field overflow
+LINE 1: SELECT '46116860184273879.03'::decimal64 * '2.00'::decimal64...
+               ^
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+-- Ensure this overflows
+SELECT '46116860184273879.04'::decimal64 * '2.00'::decimal64;
+ERROR:  decimal64 field overflow
+LINE 1: SELECT '46116860184273879.04'::decimal64 * '2.00'::decimal64...
+               ^
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+-- Should not overflow
+SELECT '46116860184273879.03'::decimal64 / '0.50'::decimal64;
+ERROR:  decimal64 field overflow
+LINE 1: SELECT '46116860184273879.03'::decimal64 / '0.50'::decimal64...
+               ^
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+-- Ensure this overflows
+SELECT '46116860184273879.04'::decimal64 / '0.50'::decimal64;
+ERROR:  decimal64 field overflow
+LINE 1: SELECT '46116860184273879.04'::decimal64 / '0.50'::decimal64...
+               ^
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+-- Ensure limits of int2 can be represented
+SELECT '32767'::decimal64::INT2,'-32768'::decimal64::INT2;
+ int2  |  int2  
+-------+--------
+ 32767 | -32768
+(1 row)
+
+-- Ensure overflow of int2 is detected
+SELECT '32768'::decimal64::INT2;
+ERROR:  smallint out of range
+-- Ensure underflow of int2 is detected
+SELECT '-32769'::decimal64::INT2;
+ERROR:  smallint out of range
+-- Ensure limits of int4 can be represented
+SELECT '2147483647'::decimal64::INT4,'-2147483648'::decimal64::INT4;
+    int4    |    int4     
+------------+-------------
+ 2147483647 | -2147483648
+(1 row)
+
+-- Ensure overflow of int4 is detected
+SELECT '2147483648'::decimal64::INT4;
+ERROR:  integer out of range for decimal64
+-- Ensure underflow of int4 is detected
+SELECT '-2147483649'::decimal64::INT4;
+ERROR:  integer out of range for decimal64
+-- Ensure overflow is detected
+SELECT SUM(a) FROM (VALUES('92233720368547758.07'::decimal64),('0.01'::decimal64)) a(a);
+ERROR:  decimal64 field overflow
+LINE 1: SELECT SUM(a) FROM (VALUES('92233720368547758.07'::decimal64...
+                                   ^
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+-- Ensure underflow is detected
+SELECT SUM(a) FROM (VALUES('-92233720368547758.08'::decimal64),('-0.01'::decimal64)) a(a);
+ERROR:  decimal64 field overflow
+LINE 1: SELECT SUM(a) FROM (VALUES('-92233720368547758.08'::decimal6...
+                                   ^
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+-- Test typmods
+SELECT 12345.33::decimal64(3,2); -- Fail
+ERROR:  decimal64 field overflow
+DETAIL:  A field with max precision 3, max scale 2 must round to an absolute value less than 10^1.
+SELECT 12345.33::decimal64(5,2); -- Fail
+ERROR:  decimal64 field overflow
+DETAIL:  A field with max precision 5, max scale 2 must round to an absolute value less than 10^3.
+-- scale of 2 should be enforced.
+SELECT 12345.44::decimal64(7,0);
+ decimal64 
+-----------
+ 12345
+(1 row)
+
+-- should work.
+SELECT 12345.33::decimal64(7,2);
+ decimal64 
+-----------
+ 12345.33
+(1 row)
+
+-- error, precision limit should be 16
+SELECT 12345.33::decimal64(18,2);
+ERROR:  DECIMAL64 precision 18 must be between 1 and 16
+LINE 1: SELECT 12345.33::decimal64(18,2);
+                         ^
+CREATE TABLE decimal64table2 (d decimal64(3,2));
+NOTICE:  Table doesn't have 'DISTRIBUTED BY' clause -- Using column named 'd' as the Greenplum Database data distribution key for this table.
+HINT:  The 'DISTRIBUTED BY' clause determines the distribution of data. Make sure column(s) chosen are the optimal data distribution key to minimize skew.
+INSERT INTO decimal64table2 VALUES(12.34); -- Fail
+ERROR:  decimal64 field overflow
+DETAIL:  A field with max precision 3, max scale 2 must round to an absolute value less than 10^1.
+INSERT INTO decimal64table2 VALUES(1.23); -- Pass
+DROP TABLE decimal64table2;
+CREATE TABLE decimal_test(a decimal64 NOT NULL);
+NOTICE:  Table doesn't have 'DISTRIBUTED BY' clause -- Using column named 'a' as the Greenplum Database data distribution key for this table.
+HINT:  The 'DISTRIBUTED BY' clause determines the distribution of data. Make sure column(s) chosen are the optimal data distribution key to minimize skew.
+INSERT INTO decimal_test VALUES ('92233720368547758.07');
+ERROR:  decimal64 field overflow
+LINE 1: INSERT INTO decimal_test VALUES ('92233720368547758.07');
+                                         ^
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+INSERT INTO decimal_test VALUES ('0.01');
+INSERT INTO decimal_test VALUES ('-92233720368547758.08');
+ERROR:  decimal64 field overflow
+LINE 1: INSERT INTO decimal_test VALUES ('-92233720368547758.08');
+                                         ^
+DETAIL:  A field with max precision 16, max scale 16 must round to an absolute value less than 10^16.
+INSERT INTO decimal_test VALUES ('-0.01');
+SELECT SUM(a) FROM decimal_test WHERE a > 0;
+          sum           
+------------------------
+ 0.01000000000000000000
+(1 row)
+
+SELECT SUM(a) FROM decimal_test WHERE a < 0;
+           sum           
+-------------------------
+ -0.01000000000000000000
+(1 row)
+
+TRUNCATE TABLE decimal_test;
+INSERT INTO decimal_test VALUES('11.11'),('22.22'),('33.33');
+SELECT SUM(a) FROM decimal_test;
+         sum         
+---------------------
+ 66.6600000000000000
+(1 row)
+
+SELECT MAX(a) FROM decimal_test;
+  max  
+-------
+ 33.33
+(1 row)
+
+SELECT MIN(a) FROM decimal_test;
+  min  
+-------
+ 11.11
+(1 row)
+
+SELECT AVG(a) FROM decimal_test;
+         avg         
+---------------------
+ 22.2200000000000000
+(1 row)
+
+DROP TABLE decimal_test;

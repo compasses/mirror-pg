@@ -1,0 +1,5 @@
+# vec_agg extension
+comment = 'speed up compution with vectorization'
+default_version = '1.0'
+module_pathname = '$libdir/vec_agg'
+relocatable = true
